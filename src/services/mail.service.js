@@ -1,0 +1,42 @@
+const nodemailer = require('nodemailer');
+const {
+  MAIL_HOST,
+  MAIL_PORT,
+  MAIL_USER,
+  MAIL_PASS,
+  MAIL_FROM,
+} = require('../config/env.config');
+
+// Transporte configurado SOLO con variables de entorno de .env.
+// Nada de credenciales hardcodeadas en el código.
+const transporter = nodemailer.createTransport({
+  host: MAIL_HOST,
+  port: Number(MAIL_PORT),
+  secure: Number(MAIL_PORT) === 465,
+  auth: {
+    user: MAIL_USER,
+    pass: MAIL_PASS,
+  },
+});
+
+const sendConfirmationEmail = async ({ to, eventTitle, reservationCode, quantity }) => {
+  const mailOptions = {
+    from: MAIL_FROM,
+    to,
+    subject: `Inscripción confirmada - ${eventTitle}`,
+    html: `
+      <h2>¡Tu inscripción fue confirmada!</h2>
+      <p>Hola, te confirmamos tu inscripción al evento:</p>
+      <ul>
+        <li><strong>Evento:</strong> ${eventTitle}</li>
+        <li><strong>Cantidad:</strong> ${quantity}</li>
+        <li><strong>Código de reserva:</strong> ${reservationCode}</li>
+      </ul>
+      <p>¡Te esperamos!</p>
+    `,
+  };
+
+  return transporter.sendMail(mailOptions);
+};
+
+module.exports = { sendConfirmationEmail, transporter };
