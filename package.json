@@ -1,0 +1,40 @@
+{
+    "name": "control-cupos",
+    "version": "1.0.0",
+    "description": "Pre-entrega 7 - Tickets, inscripciones y control de cupos: flujo de inscripcion con validaciones de negocio, control de cupos, cancelaciones y notificaciones por email con Nodemailer",
+    "main": "src/server.js",
+    "scripts": {
+        "start": "node src/server.js",
+        "dev": "nodemon src/server.js"
+    },
+    "keywords": [
+        "express",
+        "nodejs",
+        "passport",
+        "jwt",
+        "autenticacion",
+        "mongodb",
+        "mongoose",
+        "bcrypt",
+        "nodemailer",
+        "api"
+    ],
+    "author": "",
+    "license": "ISC",
+    "dependencies": {
+        "bcrypt": "^6.0.0",
+        "cookie-parser": "^1.4.7",
+        "dotenv": "^16.4.5",
+        "express": "^4.19.2",
+        "jsonwebtoken": "^9.0.3",
+        "mongoose": "^9.9.4",
+        "nodemailer": "^6.9.16",
+        "passport": "^0.7.0",
+        "passport-jwt": "^4.0.1",
+        "passport-local": "^1.0.0"
+    },
+    "devDependencies": {
+        "mongodb-memory-server": "^11.3.0",
+        "nodemon": "^3.1.0"
+    }
+}
