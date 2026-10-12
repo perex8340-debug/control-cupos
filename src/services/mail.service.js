@@ -39,4 +39,23 @@ const sendConfirmationEmail = async ({ to, eventTitle, reservationCode, quantity
   return transporter.sendMail(mailOptions);
 };
 
-module.exports = { sendConfirmationEmail, transporter };
+const sendCancellationEmail = async ({ to, eventTitle, reservationCode }) => {
+  const mailOptions = {
+    from: MAIL_FROM,
+    to,
+    subject: `Inscripción cancelada - ${eventTitle}`,
+    html: `
+      <h2>Tu inscripción fue cancelada</h2>
+      <p>Te informamos que tu inscripción al siguiente evento fue cancelada:</p>
+      <ul>
+        <li><strong>Evento:</strong> ${eventTitle}</li>
+        <li><strong>Código de reserva:</strong> ${reservationCode}</li>
+      </ul>
+      <p>Si no reconocés esta acción, contactate con el organizador.</p>
+    `,
+  };
+
+  return transporter.sendMail(mailOptions);
+};
+
+module.exports = { sendConfirmationEmail, sendCancellationEmail, transporter };

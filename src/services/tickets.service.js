@@ -3,7 +3,13 @@ const ticketsRepository = require('../repositories/tickets.repository');
 const eventsRepository = require('../repositories/events.repository');
 const usersRepository = require('../repositories/users.repository');
 const { HttpError } = require('../utils/errors');
-const { sendConfirmationEmail } = require('./mail.service');
+const { sendConfirmationEmail, sendCancellationEmail } = require('./mail.service');
+const {
+  ticketDTO,
+  myTicketsDTO,
+  eventTicketsDTO,
+} = require('../dto/ticket.dto');
+const { eventTicketListDTO } = require('../dto/event.dto');
 
 const OBJECT_ID_REGEX = /^[a-f\d]{24}$/i;
 
@@ -38,8 +44,8 @@ class TicketsService {
       throw new HttpError(400, 'El evento no está publicado');
     }
 
-    if (event.status === 'cancelled' || event.status === 'finished') {
-      throw new HttpError(400, 'El evento está cancelado o finalizado');
+    if (new Date(event.date).getTime() <= Date.now()) {
+      throw new HttpError(400, 'El evento ya ha finalizado');
     }
 
     const occupied = await ticketsRepository.countActiveForEvent(eventId);
@@ -86,22 +92,7 @@ class TicketsService {
   // -------------------------------------------------------------------------
   async getMyTickets(user) {
     const tickets = await ticketsRepository.findByUser(user.id);
-    return tickets.map((ticket) => ({
-      id: ticket._id.toString(),
-      status: ticket.status,
-      quantity: ticket.quantity,
-      reservationCode: ticket.reservationCode,
-      createdAt: ticket.createdAt,
-      cancelledAt: ticket.cancelledAt,
-      event: ticket.event
-        ? {
-            id: ticket.event._id.toString(),
-            title: ticket.event.title,
-            date: ticket.event.date,
-            location: ticket.event.location,
-          }
-        : null,
-    }));
+    return tickets.map(myTicketsDTO);
   }
 
   // -------------------------------------------------------------------------
@@ -123,28 +114,9 @@ class TicketsService {
 
     const tickets = await ticketsRepository.findByEvent(eventId);
     return {
-      event: {
-        id: event._id.toString(),
-        title: event.title,
-        capacity: event.capacity,
-      },
+      event: eventTicketListDTO(event),
       occupied: await ticketsRepository.countActiveForEvent(eventId),
-      tickets: tickets.map((ticket) => ({
-        id: ticket._id.toString(),
-        status: ticket.status,
-        quantity: ticket.quantity,
-        reservationCode: ticket.reservationCode,
-        createdAt: ticket.createdAt,
-        cancelledAt: ticket.cancelledAt,
-        user: ticket.user
-          ? {
-              id: ticket.user._id.toString(),
-              first_name: ticket.user.first_name,
-              last_name: ticket.user.last_name,
-              email: ticket.user.email,
-            }
-          : null,
-      })),
+      tickets: tickets.map(eventTicketsDTO),
     };
   }
 
@@ -175,23 +147,35 @@ class TicketsService {
       cancelledAt: new Date(),
     });
 
+    // Notificación por email al cancelar (no bloqueante, igual que la confirmación).
+    // Se envía al dueño real del ticket (ticket.user), no necesariamente a quien
+    // ejecuta la cancelación (puede ser un admin).
+    try {
+      const [owner, event] = await Promise.all([
+        usersRepository.findById(ticket.user),
+        eventsRepository.findByIdLean(ticket.event),
+      ]);
+
+      if (owner) {
+        await sendCancellationEmail({
+          to: owner.email,
+          eventTitle: event ? event.title : 'Evento',
+          reservationCode: ticket.reservationCode,
+        });
+      }
+    } catch (mailError) {
+      console.error('No se pudo enviar el email de cancelación:', mailError.message);
+    }
+
     return this.getPublicTicket(updated);
   }
 
   // -------------------------------------------------------------------------
-  // Serialización pública (balance entre cantidad de información y
+  // Serialización pública (DTO: balance entre cantidad de información y
   // no exponer datos sensibles de otros usuarios).
   // -------------------------------------------------------------------------
   getPublicTicket(ticket) {
-    return {
-      id: ticket._id.toString(),
-      event: ticket.event ? ticket.event.toString() : ticket.event,
-      status: ticket.status,
-      quantity: ticket.quantity,
-      reservationCode: ticket.reservationCode,
-      createdAt: ticket.createdAt,
-      cancelledAt: ticket.cancelledAt,
-    };
+    return ticketDTO(ticket);
   }
 }
 

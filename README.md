@@ -5,11 +5,15 @@ de Eventos e Inscripciones**: entidad **Ticket**, flujo de **inscripción** con
 **control de cupos**, **cancelaciones** y **notificaciones por email** con
 Nodemailer.
 
-Pre-entrega 7 — Tickets, inscripciones y control de cupos.
+Pre-entrega 8 — Arquitectura en capas: **DAO, Repository y DTO**.
 
-Continúa el proyecto de la pre-entrega 6: autenticación (JWT + cookies HTTP
-Only), roles (`user`, `organizer`, `admin`), entidad **Event** con su CRUD y
-reglas de negocio en la capa de `services`.
+Continúa el proyecto de la pre-entrega 7 (tickets, inscripciones, cupos y
+notificaciones) sobre la base de la pre-entrega 6 (autenticación JWT + cookies
+HTTP Only, roles `user`/`organizer`/`admin` y entidad **Event**). En esta
+entrega se formalizó la separación de responsabilidades:
+**DAO** encapsula el acceso a Mongoose, **Repositories** actúan como capa
+intermedia orientada al dominio, **Services** concentran la lógica de negocio
+y **DTO** controlan todas las respuestas de la API.
 
 ## Modelo Ticket
 
@@ -50,9 +54,10 @@ reglas de negocio en la capa de `services`.
 
 Al hacer `POST /api/events/:eid/tickets` se valida en este orden:
 
-1. El evento **existe** (sino → **404**).
-2. El evento está **`published`** (sino → **400**).
-3. El evento **no está `cancelled` ni `finished`** (→ **400**).
+1. El evento **existe** (→ **404**).
+2. El evento está **`published`** — `draft`, `cancelled` y `finished` no
+   permiten inscribirse (→ **400**).
+3. La **fecha del evento no ha pasado** todavía (→ **400**).
 4. `quantity` es un número entero **> 0** (→ **400**).
 5. **Cupos disponibles ≥ quantity**: se suma la `quantity` de los tickets
    activos (`confirmed`/`pending`) del evento.
@@ -76,18 +81,20 @@ Al hacer `POST /api/events/:eid/tickets` se valida en este orden:
 
 - Al confirmar una inscripción se envía un email con evento, cantidad y
   `reservationCode`.
+- Al **cancelar** una inscripción se envía un email de cancelación al dueño
+  real del ticket (aunque la cancele un admin), con evento y `reservationCode`.
 - Las credenciales se leen **siempre de variables de entorno**:
   `MAIL_HOST`, `MAIL_PORT`, `MAIL_USER`, `MAIL_PASS`, `MAIL_FROM`
   (definidas en `.env.example`). Nunca hardcodeadas.
-- Si el email falla, la inscripción no se pierde: se loguea el error y se
-  responde 201 (el ticket queda creado).
+- Si el email falla, la operación no se pierde: se loguea el error y se
+  responde igual (la inscripción/cancelación ya quedó registrada).
 
 ## Códigos de error
 
 | Código | Cuándo |
 |--------|--------|
 | 200 / 201 | Éxito |
-| 400 | Datos inválidos o regla de negocio (evento no publicado/cancelado/finalizado, quantity ≤ 0, ya cancelado) |
+| 400 | Datos inválidos o regla de negocio (evento no publicado, evento con fecha ya pasada, quantity ≤ 0, ya cancelado) |
 | 401 | Sin sesión válida |
 | 403 | Sesión pero sin permiso (rol o propiedad del recurso) |
 | 404 | Evento o ticket inexistente / mal formado |
@@ -96,14 +103,43 @@ Al hacer `POST /api/events/:eid/tickets` se valida en este orden:
 
 ## Arquitectura
 
+API organizada en capas formales. El flujo de una petición es:
+
+`routes → controllers → services → repositories → DAO → models (Mongoose)`
+
+| Capa | Responsabilidad | Regla |
+|------|-----------------|-------|
+| `routes/` | Método, ruta y middlewares (auth 401, autorización por rol 403) | Sin lógica de negocio |
+| `controllers/` | Coordinan request/response: leen `body`/`params`/`query`, llaman al service y responden JSON | **No importan modelos** ni resuelven reglas |
+| `services/` | **Toda la lógica de negocio**: cupos, estados, duplicados, permisos sobre recursos propios, email | Consumen **repositories**, nunca DAO/modelos |
+| `repositories/` | Capa intermedia orientada al dominio: `findByEmail`, `findPublishedEvents`, `countActiveTickets`, `cancelTicket`… | Usan el **DAO** correspondiente |
+| `dao/` | Acceso a datos: `findById`, `findOne`, `create`, `update`, `count`… | **Únicos** que importan modelos de Mongoose |
+| `dto/` | Serializan respuestas y filtran datos sensibles (incluye el resultado de los `populate`) | Ninguna respuesta expone `password` |
+| `models/` | Esquemas de Mongoose: `User.js`, `Event.js`, `Ticket.js` | - |
+
+### DTOs
+
+| DTO | Respuestas que serializa |
+|-----|--------------------------|
+| `user.dto.js` | `userDTO` → `register`, `/current`, listado admin; `userSummaryDTO` → usuario embebido en tickets |
+| `event.dto.js` | `eventDTO` → evento público (organizer filtrado si viene populado); `eventTicketListDTO` → resumen en "tickets por evento" |
+| `ticket.dto.js` | `ticketDTO` → crear/cancelar; `myTicketsDTO` → mis tickets (evento populado); `eventTicketsDTO` → tickets de un evento (usuario populado) |
+
+> Ninguna respuesta expone `password` ni su hash. Cuando hay `populate`,
+> el DTO filtra también los campos del documento relacionado.
+
+### Estructura
+
 ```
 src/
-  app.js                    # Express + routers + middleware de errores
+  app.js                    # Express + routers + middleware central de errores
   config/                   # env (fail-fast), database, passport
   models/                   # User.js, Event.js, Ticket.js
+  dto/                      # user, event, ticket (serialización de respuestas)
   controllers/              # solo request/response
-  services/                 # lógica de negocio: tickets (cupos), events, sessions, mail
-  repositories/ · dao/      # acceso a datos
+  services/                 # lógica de negocio: tickets (cupos), events, sessions, users, mail
+  repositories/             # capa intermedia orientada al dominio
+  dao/                      # único lugar que importa modelos Mongoose
   middlewares/              # auth (401), authorize (403), errorHandler
   routes/                   # sessions, events, tickets, users
   utils/                    # jwt, hash, errors (HttpError)
@@ -141,15 +177,16 @@ Variables del `.env`:
 2. Inscripción sin sesión → **401**
 3. Inscripción a evento inexistente → **404**
 4. Inscripción a evento cancelado/finalizado → **400**
-5. Sin cupo suficiente → **409** con mensaje claro de cupos disponibles
-6. Inscripción duplicada activa → **409**
-7. Cancelación propia → **200** (status `cancelled`); cupo se libera → nueva
+5. Inscripción a evento publicado **con fecha ya pasada** → **400**
+6. Sin cupo suficiente → **409** con mensaje claro de cupos disponibles
+7. Inscripción duplicada activa → **409**
+8. Cancelación propia → **200** (status `cancelled`); cupo se libera → nueva
    inscripción funciona
-8. Cancelación ya cancelado → **400**
-9. Cancelación de ticket ajeno como user → **403**; como admin → **200**
-10. `GET /api/events/:eid/tickets` como user común → **403**
-11. `GET /api/events/:eid/tickets` como organizer de otro evento → **403**
-12. `GET /api/tickets/my-tickets` sin sesión → **401**
+9. Cancelación ya cancelado → **400**
+10. Cancelación de ticket ajeno como user → **403**; como admin → **200**
+11. `GET /api/events/:eid/tickets` como user común → **403**
+12. `GET /api/events/:eid/tickets` como organizer de otro evento → **403**
+13. `GET /api/tickets/my-tickets` sin sesión → **401**
 
 ## Evidencias
 

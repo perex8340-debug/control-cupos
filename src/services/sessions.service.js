@@ -1,4 +1,5 @@
 const usersRepository = require('../repositories/users.repository');
+const { userDTO } = require('../dto/user.dto');
 const { HttpError } = require('../utils/errors');
 
 class SessionsService {
@@ -8,13 +9,7 @@ class SessionsService {
       throw new HttpError(401, 'No autenticado');
     }
 
-    return {
-      id: user._id.toString(),
-      first_name: user.first_name,
-      last_name: user.last_name,
-      email: user.email,
-      role: user.role,
-    };
+    return userDTO(user);
   }
 }
 

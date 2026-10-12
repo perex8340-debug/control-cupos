@@ -1,4 +1,5 @@
 const eventsRepository = require('../repositories/events.repository');
+const { eventDTO, eventTicketListDTO } = require('../dto/event.dto');
 const { HttpError } = require('../utils/errors');
 
 const OBJECT_ID_REGEX = /^[a-f\d]{24}$/i;
@@ -260,34 +261,11 @@ class EventsService {
   }
 
   // -------------------------------------------------------------------------
-  // Serialización pública (nunca expone datos sensibles)
+  // Serialización pública (DTO: nunca expone datos sensibles)
   // -------------------------------------------------------------------------
 
   getPublicEvent(event, withOrganizer = false) {
-    const base = {
-      id: event._id.toString(),
-      title: event.title,
-      description: event.description,
-      category: event.category,
-      date: event.date,
-      location: event.location,
-      capacity: event.capacity,
-      price: event.price,
-      status: event.status,
-    };
-
-    if (withOrganizer && typeof event.organizer === 'object' && event.organizer.first_name) {
-      base.organizer = {
-        id: event.organizer._id.toString(),
-        first_name: event.organizer.first_name,
-        last_name: event.organizer.last_name,
-        email: event.organizer.email,
-      };
-    } else {
-      base.organizer = event.organizer.toString();
-    }
-
-    return base;
+    return eventDTO(event, { withOrganizer });
   }
 }
 
