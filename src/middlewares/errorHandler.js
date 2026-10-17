@@ -8,6 +8,18 @@ const errorHandler = (error, req, res, next) => {
       .json({ status: 'error', message: error.message });
   }
 
+  // Errores con status HTTP explícito (p. ej. passport AuthenticationError
+  // "Missing credentials" -> status 400). Evita responder un 500 genérico.
+  if (
+    typeof error.status === 'number' &&
+    error.status >= 400 &&
+    error.status < 500
+  ) {
+    return res
+      .status(error.status)
+      .json({ status: 'error', message: error.message || 'Solicitud inválida' });
+  }
+
   // Errores operacionales de frameworks (p. ej. JSON mal formado de body-parser)
   if (error.type === 'entity.parse.failed') {
     return res

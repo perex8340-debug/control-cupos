@@ -23,6 +23,7 @@ passport.use(
       usernameField: 'email',
       passwordField: 'password',
       passReqToCallback: true,
+      badRequestMessage: 'Faltan campos obligatorios',
     },
     async (req, email, password, done) => {
       try {
@@ -74,6 +75,7 @@ passport.use(
     {
       usernameField: 'email',
       passwordField: 'password',
+      badRequestMessage: 'Faltan credenciales',
     },
     async (email, password, done) => {
       try {

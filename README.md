@@ -112,7 +112,7 @@ API organizada en capas formales. El flujo de una petición es:
 | `routes/` | Método, ruta y middlewares (auth 401, autorización por rol 403) | Sin lógica de negocio |
 | `controllers/` | Coordinan request/response: leen `body`/`params`/`query`, llaman al service y responden JSON | **No importan modelos** ni resuelven reglas |
 | `services/` | **Toda la lógica de negocio**: cupos, estados, duplicados, permisos sobre recursos propios, email | Consumen **repositories**, nunca DAO/modelos |
-| `repositories/` | Capa intermedia orientada al dominio: `findByEmail`, `findPublishedEvents`, `countActiveTickets`, `cancelTicket`… | Usan el **DAO** correspondiente |
+| `repositories/` | Capa intermedia orientada al dominio: `findByEmail`, `findActiveByUserAndEvent`, `countActiveTickets`, `cancelTicket`, `findByEvent`, `findByUser`… | Usan el **DAO** correspondiente |
 | `dao/` | Acceso a datos: `findById`, `findOne`, `create`, `update`, `count`… | **Únicos** que importan modelos de Mongoose |
 | `dto/` | Serializan respuestas y filtran datos sensibles (incluye el resultado de los `populate`) | Ninguna respuesta expone `password` |
 | `models/` | Esquemas de Mongoose: `User.js`, `Event.js`, `Ticket.js` | - |
@@ -170,6 +170,24 @@ Variables del `.env`:
 
 > **No se sube `.env`, `node_modules` ni credenciales** al repositorio
 > (`.gitignore` los excluye).
+
+## Tests automatizados
+
+La suite end-to-end vive en `tests/api.test.js` y usa el **runner nativo de
+Node** (`node --test`), **supertest** como cliente HTTP y
+**mongodb-memory-server** para levantar una base MongoDB real en memoria (no
+requiere una instancia local de MongoDB).
+
+```bash
+npm test
+```
+
+Cubre **39 casos** (sesiones, eventos, inscripciones/cupos, cancelaciones y
+autorización administrativa), incluidas las verificaciones de que ninguna
+respuesta expone `password`. Resultado actual: **39/39 PASS**.
+
+Detalle completo en [`docs/reporte-ejecucion-tests.md`](docs/reporte-ejecucion-tests.md)
+y en [`docs/informe-revision-deterministica.md`](docs/informe-revision-deterministica.md).
 
 ## Casos de prueba verificados
 

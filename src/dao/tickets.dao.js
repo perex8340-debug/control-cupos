@@ -28,7 +28,7 @@ class TicketsDAO {
     }).lean();
   }
 
-  async countActiveForEvent(eventId) {
+  async countActiveTickets(eventId) {
     const result = await Ticket.aggregate([
       {
         $match: {
@@ -49,7 +49,10 @@ class TicketsDAO {
   }
 
   async findByIdAndUpdate(id, updateData) {
-    return Ticket.findByIdAndUpdate(id, updateData, { new: true, runValidators: true });
+    return Ticket.findByIdAndUpdate(id, updateData, {
+      returnDocument: 'after',
+      runValidators: true,
+    });
   }
 
   async countActive(filter = {}) {

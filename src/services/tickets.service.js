@@ -48,7 +48,7 @@ class TicketsService {
       throw new HttpError(400, 'El evento ya ha finalizado');
     }
 
-    const occupied = await ticketsRepository.countActiveForEvent(eventId);
+    const occupied = await ticketsRepository.countActiveTickets(eventId);
     const available = event.capacity - occupied;
     if (parsedQuantity > available) {
       throw new HttpError(
@@ -115,7 +115,7 @@ class TicketsService {
     const tickets = await ticketsRepository.findByEvent(eventId);
     return {
       event: eventTicketListDTO(event),
-      occupied: await ticketsRepository.countActiveForEvent(eventId),
+      occupied: await ticketsRepository.countActiveTickets(eventId),
       tickets: tickets.map(eventTicketsDTO),
     };
   }
@@ -142,10 +142,7 @@ class TicketsService {
       throw new HttpError(400, 'El ticket ya está cancelado');
     }
 
-    const updated = await ticketsRepository.findByIdAndUpdate(ticketId, {
-      status: 'cancelled',
-      cancelledAt: new Date(),
-    });
+    const updated = await ticketsRepository.cancelTicket(ticketId);
 
     // Notificación por email al cancelar (no bloqueante, igual que la confirmación).
     // Se envía al dueño real del ticket (ticket.user), no necesariamente a quien

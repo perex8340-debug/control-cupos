@@ -21,16 +21,23 @@ class TicketsRepository {
     return ticketsDAO.findActiveByUserAndEvent(userId, eventId);
   }
 
-  async countActiveForEvent(eventId) {
-    return ticketsDAO.countActiveForEvent(eventId);
+  // Método orientado al dominio: cuenta los cupos ocupados (tickets activos)
+  // de un evento.
+  async countActiveTickets(eventId) {
+    return ticketsDAO.countActiveTickets(eventId);
   }
 
   async findByEvent(eventId) {
     return ticketsDAO.findByEvent(eventId);
   }
 
-  async findByIdAndUpdate(id, updateData) {
-    return ticketsDAO.findByIdAndUpdate(id, updateData);
+  // Método orientado al dominio: cancela un ticket (lógico, no borra el
+  // documento) marcando status=cancelled y registrando cancelledAt.
+  async cancelTicket(ticketId) {
+    return ticketsDAO.findByIdAndUpdate(ticketId, {
+      status: 'cancelled',
+      cancelledAt: new Date(),
+    });
   }
 }
 

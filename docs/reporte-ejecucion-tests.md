@@ -1,47 +1,102 @@
 # Reporte de Ejecución de Tests - Pre-entrega 8
 
-**Proyecto:** control-cupos  
-**Commit:** fbe4c5c  
-**Fecha de ejecución:** 12/10/2026  
-**Entorno:** Node.js + mongodb-memory-server (pruebas end-to-end en memoria)  
-**Resultado global:** **32/32 PASS**
+**Proyecto:** control-cupos
+**Comando:** `npm test`
+**Runner:** Node.js Test Runner nativo (`node --test`)
+**Base de datos:** `mongodb-memory-server` (MongoDB real en memoria)
+**Cliente HTTP:** `supertest`
+**Fecha de ejecución:** 16/10/2026
 
-## Casos de prueba ejecutados
+## Resultado global: **39/39 PASS**
 
-| # | Caso | Ruta/Método | Esperado | Obtenido | Estado |
-|---|---|---|---|---|---|
-| 1 | Registro exitoso | POST /api/sessions/register | 201 | 201 | PASS |
-| 2 | Login exitoso | POST /api/sessions/login | 200 + cookie JWT | 200 + cookie | PASS |
-| 3 | /current sin password | GET /api/sessions/current | 200, sin password | 200, sin password | PASS |
-| 4 | Crear evento (organizer) | POST /api/events | 201 | 201 | PASS |
-| 5 | Publicar evento | PATCH /api/events/:eid/publish | 200 | 200 | PASS |
-| 6 | Listar eventos publicados | GET /api/events | 200 | 200 | PASS |
-| 7 | Inscripción exitosa | POST /api/events/:eid/tickets | 201 + ticketDTO sin password | 201 | PASS |
-| 8 | Mis tickets con populate | GET /api/tickets/my-tickets | 200, sin password | 200 | PASS |
-| 9 | Inscripción sin sesión | POST /api/events/:eid/tickets | 401 | 401 | PASS |
-| 10 | Evento inexistente | POST /api/events/:eid/tickets | 404 | 404 | PASS |
-| 11 | Evento cancelado/finalizado | POST /api/events/:eid/tickets | 400 | 400 | PASS |
-| 12 | Evento con fecha pasada | POST /api/events/:eid/tickets | 400 "El evento ya ha finalizado" | 400 | PASS |
-| 13 | Sin cupo suficiente | POST /api/events/:eid/tickets | 409 | 409 | PASS |
-| 14 | Inscripción duplicada activa | POST /api/events/:eid/tickets | 409 | 409 | PASS |
-| 15 | Tickets por evento (organizer dueño) | GET /api/events/:eid/tickets | 200, usuarios sin password | 200 | PASS |
-| 16 | Tickets por evento (user común) | GET /api/events/:eid/tickets | 403 | 403 | PASS |
-| 17 | Tickets por evento (otro organizer) | GET /api/events/:eid/tickets | 403 | 403 | PASS |
-| 18 | Cancelación propia | PATCH /api/tickets/:tid/cancel | 200, status cancelled + cancelledAt | 200 | PASS |
-| 19 | Cancelación ya cancelada | PATCH /api/tickets/:tid/cancel | 400 | 400 | PASS |
-| 20 | Cancelación ajeno (user) | PATCH /api/tickets/:tid/cancel | 403 | 403 | PASS |
-| 21 | Cancelación ajeno (admin) | PATCH /api/tickets/:tid/cancel | 200 | 200 | PASS |
-| 22 | Cupo liberado tras cancelación | POST /api/events/:eid/tickets | 201 (reinscripción) | 201 | PASS |
-| 23 | Mis tickets sin sesión | GET /api/tickets/my-tickets | 401 | 401 | PASS |
-| 24-32 | Permisos/DTOs/sanitización adicionales | Varios | Conforme | Conforme | PASS (9) |
+```
+ℹ tests 39
+ℹ suites 5
+ℹ pass 39
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 19277.5648
+```
 
-## Verificación DTOs/sanitización
+> Los tests corren contra una instancia real de MongoDB en memoria. El envío de
+> emails se apunta a un puerto local cerrado de forma intencional: la conexión
+> SMTP falla con `ECONNREFUSED` y el `tickets.service` captura el error sin
+> perder la inscripción/cancelación. Esto valida el comportamiento no bloqueante
+> de las notificaciones.
 
-- `/current`: sin `password`.
-- Tickets con `populate(user)`: usuario embebido sin `password` (via `eventTicketsDTO`).
-- Tickets con `populate(event)`: evento resumido via `eventTicketListDTO`.
-- Usuarios (admin/listados): serializados via `userDTO` sin `password`.
+## Suites y casos ejecutados
+
+### Suite 1 — Sesiones y autenticación (8)
+| # | Caso | Esperado | Obtenido | Estado |
+|---|------|----------|----------|--------|
+| 1 | Registro exitoso | 201 | 201 | PASS |
+| 2 | Registro sin campos obligatorios | 400 | 400 | PASS |
+| 3 | Registro con email inválido | 400 | 400 | PASS |
+| 4 | Registro duplicado | 409 | 409 | PASS |
+| 5 | Login exitoso (cookie JWT) | 200 | 200 | PASS |
+| 6 | Login con password incorrecta | 401 | 401 | PASS |
+| 7 | `GET /current` sin sesión | 401 | 401 | PASS |
+| 8 | `GET /current` con sesión, sin password | 200 | 200 | PASS |
+
+### Suite 2 — Eventos (8)
+| # | Caso | Esperado | Obtenido | Estado |
+|---|------|----------|----------|--------|
+| 9 | Crear evento como user común | 403 | 403 | PASS |
+| 10 | Crear evento como organizer | 201 | 201 | PASS |
+| 11 | Crear evento con fecha pasada | 400 | 400 | PASS |
+| 12 | Publicar evento | 200 | 200 | PASS |
+| 13 | Listar eventos | 200 | 200 | PASS |
+| 14 | Obtener evento por id | 200 | 200 | PASS |
+| 15 | Obtener evento inexistente | 404 | 404 | PASS |
+| 16 | Obtener evento con id mal formado | 400 | 400 | PASS |
+
+### Suite 3 — Inscripciones y control de cupos (13)
+| # | Caso | Esperado | Obtenido | Estado |
+|---|------|----------|----------|--------|
+| 17 | Inscripción exitosa (ticket sin password) | 201 | 201 | PASS |
+| 18 | Inscripción sin sesión | 401 | 401 | PASS |
+| 19 | Inscripción a evento inexistente | 404 | 404 | PASS |
+| 20 | Inscripción a evento no publicado (draft) | 400 | 400 | PASS |
+| 21 | Inscripción a evento cancelado | 400 | 400 | PASS |
+| 22 | Inscripción a evento con fecha ya pasada | 400 | 400 | PASS |
+| 23 | `quantity` inválida (0) | 400 | 400 | PASS |
+| 24 | Sin cupo suficiente | 409 | 409 | PASS |
+| 25 | Inscripción duplicada activa | 409 | 409 | PASS |
+| 26 | `GET /my-tickets` con populate, sin password | 200 | 200 | PASS |
+| 27 | `GET /my-tickets` sin sesión | 401 | 401 | PASS |
+| 28 | `GET /events/:eid/tickets` (organizer dueño), sin password | 200 | 200 | PASS |
+| 29 | `GET /events/:eid/tickets` (user común) | 403 | 403 | PASS |
+| 30 | `GET /events/:eid/tickets` (otro organizer) | 403 | 403 | PASS |
+
+### Suite 4 — Cancelaciones y liberación de cupos (5)
+| # | Caso | Esperado | Obtenido | Estado |
+|---|------|----------|----------|--------|
+| 31 | Cancelar ticket propio (cancelled + cancelledAt) | 200 | 200 | PASS |
+| 32 | Cancelar ticket ya cancelado | 400 | 400 | PASS |
+| 33 | Cancelar ticket ajeno como user | 403 | 403 | PASS |
+| 34 | Cancelar ticket ajeno como admin | 200 | 200 | PASS |
+| 35 | Cupo liberado tras cancelación (reinscripción) | 201 | 201 | PASS |
+
+### Suite 5 — Ruta administrativa de usuarios (4)
+| # | Caso | Esperado | Obtenido | Estado |
+|---|------|----------|----------|--------|
+| 36 | `GET /users` como admin, sin password | 200 | 200 | PASS |
+| 37 | `GET /users` como organizer | 403 | 403 | PASS |
+| 38 | `GET /users` sin sesión | 401 | 401 | PASS |
+| 39 | Ruta inexistente | 404 | 404 | PASS |
+
+## Verificación DTO / sanitización
+
+- `GET /current`: la respuesta no contiene `password` (verificado por aserción).
+- Tickets con `populate(event)`: evento resumido vía `myTicketsDTO`.
+- Tickets con `populate(user)`: usuario embebido sin `password` vía `eventTicketsDTO`.
+- Listado admin de usuarios: serializado vía `userDTO`, sin `password`.
 
 ## Conclusión
 
-Tras refactorización a DAO/Repository/Services/Controllers+DTO, comportamiento externo idéntico. **32/32 PASS**. Sin regresiones.
+Tras la refactorización a **DAO → Repository → Service → Controller + DTO**, el
+comportamiento externo de la API se preserva íntegramente. **39/39 PASS**, sin
+regresiones. La suite es reproducible con `npm test` en cualquier entorno con
+Node.js y conexión para descargar el binario de MongoDB en memoria.

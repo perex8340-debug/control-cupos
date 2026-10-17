@@ -26,7 +26,7 @@ class EventsDAO {
 
   async findByIdAndUpdate(id, updateData) {
     return Event.findByIdAndUpdate(id, updateData, {
-      new: true,
+      returnDocument: 'after',
       runValidators: true,
     }).populate('organizer', 'first_name last_name email');
   }
