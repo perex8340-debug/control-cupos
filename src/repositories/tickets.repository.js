@@ -1,19 +1,15 @@
 const ticketsDAO = require('../dao/tickets.dao');
 
 class TicketsRepository {
-  async create(ticketData) {
+  async createTicket(ticketData) {
     return ticketsDAO.create(ticketData);
   }
 
-  async findById(id) {
-    return ticketsDAO.findById(id);
-  }
-
-  async findByIdLean(id) {
+  async findTicketForCancellation(id) {
     return ticketsDAO.findByIdLean(id);
   }
 
-  async findByUser(userId) {
+  async findTicketsForUser(userId) {
     return ticketsDAO.findByUser(userId);
   }
 
@@ -27,7 +23,7 @@ class TicketsRepository {
     return ticketsDAO.countActiveTickets(eventId);
   }
 
-  async findByEvent(eventId) {
+  async findTicketsForEvent(eventId) {
     return ticketsDAO.findByEvent(eventId);
   }
 

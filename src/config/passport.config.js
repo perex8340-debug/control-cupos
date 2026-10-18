@@ -1,20 +1,13 @@
 const passport = require('passport');
 const { Strategy: LocalStrategy } = require('passport-local');
 const { Strategy: JwtStrategy, ExtractJwt } = require('passport-jwt');
-const usersRepository = require('../repositories/users.repository');
-const { createHash, isValidPassword } = require('../utils/hash');
-const { generateToken, COOKIE_NAME } = require('../utils/jwt');
+const sessionsService = require('../services/sessions.service');
+const { COOKIE_NAME } = require('../utils/jwt');
 const { JWT_SECRET } = require('./env.config');
-const { HttpError } = require('../utils/errors');
-
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const MIN_PASSWORD_LENGTH = 6;
-
-const normalizeEmail = (email) => email.trim().toLowerCase();
 
 // ---------------------------------------------------------------------------
 // Estrategia: register
-// Lógica completa del POST /api/sessions/register dentro de Passport.
+// Passport valida la estrategia y delega el caso de uso al SessionsService.
 // ---------------------------------------------------------------------------
 passport.use(
   'register',
@@ -27,36 +20,7 @@ passport.use(
     },
     async (req, email, password, done) => {
       try {
-        const { first_name, last_name } = req.body;
-
-        if (!first_name || !last_name || !email || !password) {
-          return done(new HttpError(400, 'Faltan campos obligatorios'));
-        }
-
-        const normalizedEmail = normalizeEmail(email);
-
-        if (!EMAIL_REGEX.test(normalizedEmail)) {
-          return done(new HttpError(400, 'El email no tiene un formato válido'));
-        }
-
-        if (password.length < MIN_PASSWORD_LENGTH) {
-          return done(
-            new HttpError(400, 'La contraseña debe tener al menos 6 caracteres')
-          );
-        }
-
-        const existingUser = await usersRepository.findByEmail(normalizedEmail);
-        if (existingUser) {
-          return done(new HttpError(409, 'El email ya está registrado'));
-        }
-
-        const newUser = await usersRepository.create({
-          first_name: first_name.trim(),
-          last_name: last_name.trim(),
-          email: normalizedEmail,
-          password: createHash(password),
-        });
-
+        const newUser = await sessionsService.registerUser(req.body);
         return done(null, newUser);
       } catch (error) {
         return done(error);
@@ -67,7 +31,7 @@ passport.use(
 
 // ---------------------------------------------------------------------------
 // Estrategia: login
-// Valida credenciales. El JWT lo genera el controller, no la estrategia.
+// El SessionsService valida las credenciales; el JWT lo genera el controller.
 // ---------------------------------------------------------------------------
 passport.use(
   'login',
@@ -79,16 +43,7 @@ passport.use(
     },
     async (email, password, done) => {
       try {
-        if (!email || !password) {
-          return done(new HttpError(400, 'Faltan credenciales'));
-        }
-
-        const user = await usersRepository.findByEmail(normalizeEmail(email));
-
-        if (!user || !isValidPassword(password, user.password)) {
-          return done(new HttpError(401, 'Credenciales inválidas'));
-        }
-
+        const user = await sessionsService.authenticate(email, password);
         return done(null, user);
       } catch (error) {
         return done(error);

@@ -35,7 +35,7 @@ class TicketsService {
       throw new HttpError(400, 'La cantidad solicitada debe ser un número entero mayor a 0');
     }
 
-    const event = await eventsRepository.findByIdLean(eventId);
+    const event = await eventsRepository.findForBusinessRules(eventId);
     if (!event) {
       throw new HttpError(404, 'Evento no encontrado');
     }
@@ -62,7 +62,7 @@ class TicketsService {
       throw new HttpError(409, 'Ya tenés una inscripción activa para este evento');
     }
 
-    const ticket = await ticketsRepository.create({
+    const ticket = await ticketsRepository.createTicket({
       user: user.id,
       event: eventId,
       status: 'confirmed',
@@ -91,7 +91,7 @@ class TicketsService {
   // Mis tickets
   // -------------------------------------------------------------------------
   async getMyTickets(user) {
-    const tickets = await ticketsRepository.findByUser(user.id);
+    const tickets = await ticketsRepository.findTicketsForUser(user.id);
     return tickets.map(myTicketsDTO);
   }
 
@@ -101,7 +101,7 @@ class TicketsService {
   async getEventTickets(user, eventId) {
     this.assertValidId(eventId, 'Identificador de evento');
 
-    const event = await eventsRepository.findByIdLean(eventId);
+    const event = await eventsRepository.findForBusinessRules(eventId);
     if (!event) {
       throw new HttpError(404, 'Evento no encontrado');
     }
@@ -112,7 +112,7 @@ class TicketsService {
       throw new HttpError(403, 'No tenés permisos para ver los tickets de este evento');
     }
 
-    const tickets = await ticketsRepository.findByEvent(eventId);
+    const tickets = await ticketsRepository.findTicketsForEvent(eventId);
     return {
       event: eventTicketListDTO(event),
       occupied: await ticketsRepository.countActiveTickets(eventId),
@@ -127,7 +127,7 @@ class TicketsService {
   async cancelTicket(user, ticketId) {
     this.assertValidId(ticketId, 'Identificador de ticket');
 
-    const ticket = await ticketsRepository.findByIdLean(ticketId);
+    const ticket = await ticketsRepository.findTicketForCancellation(ticketId);
     if (!ticket) {
       throw new HttpError(404, 'Ticket no encontrado');
     }
@@ -150,7 +150,7 @@ class TicketsService {
     try {
       const [owner, event] = await Promise.all([
         usersRepository.findById(ticket.user),
-        eventsRepository.findByIdLean(ticket.event),
+        eventsRepository.findForBusinessRules(ticket.event),
       ]);
 
       if (owner) {

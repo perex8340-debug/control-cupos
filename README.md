@@ -111,8 +111,8 @@ API organizada en capas formales. El flujo de una petición es:
 |------|-----------------|-------|
 | `routes/` | Método, ruta y middlewares (auth 401, autorización por rol 403) | Sin lógica de negocio |
 | `controllers/` | Coordinan request/response: leen `body`/`params`/`query`, llaman al service y responden JSON | **No importan modelos** ni resuelven reglas |
-| `services/` | **Toda la lógica de negocio**: cupos, estados, duplicados, permisos sobre recursos propios, email | Consumen **repositories**, nunca DAO/modelos |
-| `repositories/` | Capa intermedia orientada al dominio: `findByEmail`, `findActiveByUserAndEvent`, `countActiveTickets`, `cancelTicket`, `findByEvent`, `findByUser`… | Usan el **DAO** correspondiente |
+| `services/` | **Toda la lógica de negocio**: registro/login, cupos, estados, duplicados, permisos sobre recursos propios, email | Consumen **repositories**, nunca DAO/modelos |
+| `repositories/` | Capa intermedia orientada al dominio: `findByEmail`, `listEvents`, `findForBusinessRules`, `findActiveByUserAndEvent`, `countActiveTickets`, `cancelTicket`, `findTicketsForEvent`, `findTicketsForUser`… | Usan el **DAO** correspondiente y aíslan los filtros de persistencia |
 | `dao/` | Acceso a datos: `findById`, `findOne`, `create`, `update`, `count`… | **Únicos** que importan modelos de Mongoose |
 | `dto/` | Serializan respuestas y filtran datos sensibles (incluye el resultado de los `populate`) | Ninguna respuesta expone `password` |
 | `models/` | Esquemas de Mongoose: `User.js`, `Event.js`, `Ticket.js` | - |
@@ -137,8 +137,8 @@ src/
   models/                   # User.js, Event.js, Ticket.js
   dto/                      # user, event, ticket (serialización de respuestas)
   controllers/              # solo request/response
-  services/                 # lógica de negocio: tickets (cupos), events, sessions, users, mail
-  repositories/             # capa intermedia orientada al dominio
+  services/                 # lógica de negocio: registro/login, tickets, eventos, usuarios, email
+  repositories/             # operaciones de dominio y consultas de persistencia
   dao/                      # único lugar que importa modelos Mongoose
   middlewares/              # auth (401), authorize (403), errorHandler
   routes/                   # sessions, events, tickets, users
@@ -184,10 +184,9 @@ npm test
 
 Cubre **39 casos** (sesiones, eventos, inscripciones/cupos, cancelaciones y
 autorización administrativa), incluidas las verificaciones de que ninguna
-respuesta expone `password`. Resultado actual: **39/39 PASS**.
-
-Detalle completo en [`docs/reporte-ejecucion-tests.md`](docs/reporte-ejecucion-tests.md)
-y en [`docs/informe-revision-deterministica.md`](docs/informe-revision-deterministica.md).
+respuesta expone `password`. La suite se volvió a ejecutar el **18/10/2026**:
+**39/39 PASS**. El detalle está en [`docs/reporte-ejecucion-tests.md`](docs/reporte-ejecucion-tests.md)
+y la revisión de capas en [`docs/informe-revision-deterministica-2026-10-18.md`](docs/informe-revision-deterministica-2026-10-18.md).
 
 ## Casos de prueba verificados
 

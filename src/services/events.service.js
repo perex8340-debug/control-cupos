@@ -1,21 +1,25 @@
 const eventsRepository = require('../repositories/events.repository');
-const { eventDTO, eventTicketListDTO } = require('../dto/event.dto');
+const ticketsRepository = require('../repositories/tickets.repository');
+const { eventDTO } = require('../dto/event.dto');
 const { HttpError } = require('../utils/errors');
 
 const OBJECT_ID_REGEX = /^[a-f\d]{24}$/i;
 
 const VALID_STATUSES = ['draft', 'published', 'cancelled', 'finished'];
-const SORTABLE_FIELDS = ['date', 'title', 'category', 'location', 'capacity', 'price', 'status'];
-const DEFAULT_LIMIT = 10;
-const MAX_LIMIT = 100;
-
 class EventsService {
   // -------------------------------------------------------------------------
   // Validaciones de negocio (viven aca, no en rutas ni controllers)
   // -------------------------------------------------------------------------
 
-  validateEventInput({ title, description, category, date, location, capacity, price }) {
-    if (!title || !description || !category || !location) {
+  validateEventInput(eventData) {
+    if (!eventData || typeof eventData !== 'object' || Array.isArray(eventData)) {
+      throw new HttpError(400, 'Los datos del evento no son válidos');
+    }
+
+    const { title, description, category, date, location, capacity, price } = eventData;
+    if ([title, description, category, location].some(
+      (value) => typeof value !== 'string' || !value.trim()
+    )) {
       throw new HttpError(400, 'Faltan campos obligatorios');
     }
 
@@ -32,8 +36,8 @@ class EventsService {
       throw new HttpError(400, 'No se puede crear un evento con fecha pasada');
     }
 
-    if (typeof capacity !== 'number' || capacity <= 0) {
-      throw new HttpError(400, 'La capacidad debe ser mayor a 0');
+    if (!Number.isInteger(capacity) || capacity <= 0) {
+      throw new HttpError(400, 'La capacidad debe ser un número entero mayor a 0');
     }
 
     if (typeof price !== 'number' || Number.isNaN(price) || price < 0) {
@@ -80,7 +84,7 @@ class EventsService {
   async createEvent(user, eventData) {
     this.validateEventInput(eventData);
 
-    const event = await eventsRepository.create({
+    const event = await eventsRepository.createEvent({
       title: eventData.title.trim(),
       description: eventData.description.trim(),
       category: eventData.category.trim(),
@@ -104,25 +108,17 @@ class EventsService {
   }
 
   async listEvents(query) {
-    const { filter, sort, page, limit } = this.buildQuery(query);
-
-    const [data, total] = await Promise.all([
-      eventsRepository.find(filter, { sort, skip: (page - 1) * limit, limit }),
-      eventsRepository.count(filter),
-    ]);
-
+    this.validateListQuery(query);
+    const result = await eventsRepository.listEvents(query);
     return {
-      data: data.map((event) => this.getPublicEvent(event)),
-      page,
-      limit,
-      total,
-      totalPages: total === 0 ? 0 : Math.ceil(total / limit),
+      ...result,
+      data: result.data.map((event) => this.getPublicEvent(event)),
     };
   }
 
   async updateEvent(user, id, updateData) {
     this.assertValidId(id);
-    const event = await eventsRepository.findByIdLean(id);
+    const event = await eventsRepository.findForBusinessRules(id);
     if (!event) {
       throw new HttpError(404, 'Evento no encontrado');
     }
@@ -130,13 +126,29 @@ class EventsService {
     this.assertCanModify(event, user);
     this.assertNotCancelled(event);
 
-    // El estado se cambia solo por PATCH /:id/status; el organizador
-    // siempre es el creador (req.user), nunca viene del body.
-    const updates = { ...updateData };
-    delete updates.status;
-    delete updates.organizer;
+    if (!updateData || typeof updateData !== 'object' || Array.isArray(updateData)) {
+      throw new HttpError(400, 'Los datos del evento no son válidos');
+    }
 
-    if (updates.date) {
+    // El estado y el organizador no se pueden modificar desde este endpoint.
+    const editableFields = ['title', 'description', 'category', 'date', 'location', 'capacity', 'price'];
+    const updates = Object.fromEntries(
+      Object.entries(updateData).filter(([field]) => editableFields.includes(field))
+    );
+    if (Object.keys(updates).length === 0) {
+      throw new HttpError(400, 'No hay campos válidos para actualizar');
+    }
+
+    for (const field of ['title', 'description', 'category', 'location']) {
+      if (updates[field] !== undefined) {
+        if (typeof updates[field] !== 'string' || !updates[field].trim()) {
+          throw new HttpError(400, `El campo ${field} no es válido`);
+        }
+        updates[field] = updates[field].trim();
+      }
+    }
+
+    if (updates.date !== undefined) {
       const eventDate = new Date(updates.date);
       if (Number.isNaN(eventDate.getTime())) {
         throw new HttpError(400, 'La fecha del evento no es válida');
@@ -149,9 +161,16 @@ class EventsService {
 
     if (
       updates.capacity !== undefined &&
-      (typeof updates.capacity !== 'number' || updates.capacity <= 0)
+      (!Number.isInteger(updates.capacity) || updates.capacity <= 0)
     ) {
-      throw new HttpError(400, 'La capacidad debe ser mayor a 0');
+      throw new HttpError(400, 'La capacidad debe ser un número entero mayor a 0');
+    }
+
+    if (updates.capacity !== undefined) {
+      const occupied = await ticketsRepository.countActiveTickets(id);
+      if (updates.capacity < occupied) {
+        throw new HttpError(409, 'La capacidad no puede ser menor a los cupos ya ocupados');
+      }
     }
 
     if (
@@ -163,7 +182,7 @@ class EventsService {
       throw new HttpError(400, 'El precio no puede ser negativo');
     }
 
-    const updated = await eventsRepository.update(id, updates);
+    const updated = await eventsRepository.updateEvent(id, updates);
     return this.getPublicEvent(updated, true);
   }
 
@@ -176,7 +195,7 @@ class EventsService {
     }
 
     this.assertValidId(id);
-    const event = await eventsRepository.findByIdLean(id);
+    const event = await eventsRepository.findForBusinessRules(id);
     if (!event) {
       throw new HttpError(404, 'Evento no encontrado');
     }
@@ -191,73 +210,28 @@ class EventsService {
       this.assertCanPublish(event);
     }
 
-    const updated = await eventsRepository.update(id, { status: newStatus });
+    const updated = await eventsRepository.updateEvent(id, { status: newStatus });
     return this.getPublicEvent(updated, true);
   }
 
   // -------------------------------------------------------------------------
-  // Query building (filtros, paginacion, ordenamiento)
+  // Validación de criterios para listar eventos
   // -------------------------------------------------------------------------
 
-  buildQuery(query) {
-    const filter = {};
-
-    if (query.status) {
-      filter.status = query.status;
-    }
-    if (query.category) {
-      filter.category = { $regex: new RegExp(this.escapeRegex(query.category), 'i') };
-    }
-    if (query.location) {
-      filter.location = { $regex: new RegExp(this.escapeRegex(query.location), 'i') };
+  validateListQuery(query = {}) {
+    if (query.status && !VALID_STATUSES.includes(query.status)) {
+      throw new HttpError(400, 'Estado de evento no válido');
     }
 
-    const dateRange = {};
-    if (query.dateFrom) {
-      dateRange.$gte = new Date(query.dateFrom);
-    }
-    if (query.dateTo) {
-      dateRange.$lte = new Date(query.dateTo);
-    }
-    if (Object.keys(dateRange).length > 0) {
-      filter.date = dateRange;
-    }
-
-    const page = Math.max(parseInt(query.page, 10) || 1, 1);
-    const limit = Math.min(
-      Math.max(parseInt(query.limit, 10) || DEFAULT_LIMIT, 1),
-      MAX_LIMIT
-    );
-
-    const sort = this.buildSort(query.sort);
-
-    return { filter, sort, page, limit };
-  }
-
-  buildSort(sortParam) {
-    if (!sortParam) {
-      return { date: 1 };
-    }
-
-    const parts = String(sortParam).split(',');
-    const sort = {};
-    for (const part of parts) {
-      let field = part.trim();
-      let order = 1;
-      if (field.startsWith('-')) {
-        order = -1;
-        field = field.slice(1);
-      }
-      if (SORTABLE_FIELDS.includes(field)) {
-        sort[field] = order;
+    for (const field of ['dateFrom', 'dateTo']) {
+      if (query[field] && Number.isNaN(new Date(query[field]).getTime())) {
+        throw new HttpError(400, `El filtro ${field} no contiene una fecha válida`);
       }
     }
 
-    return Object.keys(sort).length > 0 ? sort : { date: 1 };
-  }
-
-  escapeRegex(value) {
-    return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    if (query.dateFrom && query.dateTo && new Date(query.dateFrom) > new Date(query.dateTo)) {
+      throw new HttpError(400, 'El rango de fechas no es válido');
+    }
   }
 
   // -------------------------------------------------------------------------

@@ -5,7 +5,7 @@ class UsersRepository {
     return usersDAO.findByEmail(email);
   }
 
-  async findAll() {
+  async listUsers() {
     return usersDAO.findAll();
   }
 
@@ -13,7 +13,7 @@ class UsersRepository {
     return usersDAO.findById(id);
   }
 
-  async create(userData) {
+  async createUser(userData) {
     return usersDAO.create(userData);
   }
 }

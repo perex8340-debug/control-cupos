@@ -5,7 +5,12 @@
 **Runner:** Node.js Test Runner nativo (`node --test`)
 **Base de datos:** `mongodb-memory-server` (MongoDB real en memoria)
 **Cliente HTTP:** `supertest`
-**Fecha de ejecución:** 16/10/2026
+**Fecha de ejecución:** 18/10/2026
+
+En el entorno aislado de revisión, las variables `TEMP` y `TMP` se apuntaron al
+workspace para permitir que MongoDB en memoria escribiera sus archivos de
+WiredTiger. La primera ejecución con el directorio temporal predeterminado fue
+bloqueada por permisos del sandbox; no fue un fallo de la API.
 
 ## Resultado global: **39/39 PASS**
 
@@ -17,7 +22,7 @@
 ℹ cancelled 0
 ℹ skipped 0
 ℹ todo 0
-ℹ duration_ms 19277.5648
+ℹ duration_ms 20217.3516
 ```
 
 > Los tests corren contra una instancia real de MongoDB en memoria. El envío de

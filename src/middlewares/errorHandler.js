@@ -36,6 +36,14 @@ const errorHandler = (error, req, res, next) => {
       .json({ status: 'error', message: 'El email ya está registrado' });
   }
 
+  // Errores de validación/casteo de Mongoose son datos inválidos del request,
+  // no fallos internos de la API.
+  if (error.name === 'ValidationError' || error.name === 'CastError') {
+    return res
+      .status(400)
+      .json({ status: 'error', message: 'Los datos de la solicitud no son válidos' });
+  }
+
   // Errores de verificación de JWT (passport-jwt): token ausente, inválido o
   // expirado. Siempre se responde 401 genérico, sin diferenciar la causa.
   if (

@@ -1,5 +1,7 @@
 # Informe de Revisión Determinística - Pre-entrega 8
 
+> Revisión histórica del 16/10/2026. Consultá el [informe actualizado del 18/10/2026](informe-revision-deterministica-2026-10-18.md) para el estado actual del código.
+
 **Proyecto:** control-cupos
 **Alcance:** Arquitectura en capas DAO, Repository y DTO
 **Base:** refactor estructural sin cambios de comportamiento externo
